@@ -1,15 +1,16 @@
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
-from .baseinvocation import BaseInvocation, InvocationContext, BaseInvocationOutput
-from .image import ImageOutput, build_image_output
+from invokeai.app.invocations.baseinvocation import BaseInvocation, InvocationContext, BaseInvocationOutput
+from invokeai.app.invocations.image import ImageOutput, build_image_output
 
 from diffusers import DiffusionPipeline
 import torch
 
-from ..models.image import ImageType
-from .latent import LatentsOutput, LatentsField, random_seed
+from invokeai.app.models.image import ImageType
+from invokeai.app.invocations.latent import LatentsOutput, LatentsField
+from invokeai.app.util.misc import get_random_seed
 
-from ...backend.util.util import image_to_dataURL
+from invokeai.backend.util.util import image_to_dataURL
 from invokeai.app.api.models.images import ProgressImage
 from diffusers.utils import pt_to_pil
 
@@ -116,7 +117,7 @@ class DeepFloydStage1Invocation(BaseInvocation):
         variant = "fp16"
         prompt_embeds = context.services.latents.get(self.prompt_embeds.latents_name)
         negative_embeds = context.services.latents.get(self.negative_embeds.latents_name)
-        seed = self.seed if self.seed != -1 else random_seed()
+        seed = self.seed if self.seed != -1 else get_random_seed()
 
         stage_1 = DiffusionPipeline.from_pretrained(self.stage_1_model, variant=variant, torch_dtype=dtype, text_encoder=None)
         
@@ -142,7 +143,7 @@ class DeepFloydStage1Invocation(BaseInvocation):
 
         name = f'{context.graph_execution_state_id}__{self.id}'
         context.services.latents.set(name, image)
-        return LatentsOutput(latents=LatentsField(latents_name=name))
+        return LatentsOutput(latents=LatentsField(latents_name=name), width=64, height=64)
 
 
 class DeepFloydStage2Invocation(BaseInvocation):
@@ -164,7 +165,7 @@ class DeepFloydStage2Invocation(BaseInvocation):
         latents = context.services.latents.get(self.latents.latents_name)
         prompt_embeds = context.services.latents.get(self.prompt_embeds.latents_name)
         negative_embeds = context.services.latents.get(self.negative_embeds.latents_name)
-        seed = self.seed if self.seed != -1 else random_seed()
+        seed = self.seed if self.seed != -1 else get_random_seed()
 
         stage_2 = DiffusionPipeline.from_pretrained(self.stage_2_model, text_encoder=None, variant=variant, torch_dtype=dtype, num_inference_steps=self.steps, guidance_scale=self.cfg_scale)
 
@@ -193,7 +194,7 @@ class DeepFloydStage2Invocation(BaseInvocation):
 
         name = f'{context.graph_execution_state_id}__{self.id}'
         context.services.latents.set(name, image)
-        return LatentsOutput(latents=LatentsField(latents_name=name))
+        return LatentsOutput(latents=LatentsField(latents_name=name), width=512, height=512)
 
 class DeepFloydStage3Invocation(BaseInvocation):
     #fmt: off
